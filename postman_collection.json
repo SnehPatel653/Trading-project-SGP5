@@ -1,0 +1,392 @@
+{
+  "info": {
+    "name": "Trading Platform API",
+    "description": "API collection for Trading Platform",
+    "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+  },
+  "item": [
+    {
+      "name": "Authentication",
+      "item": [
+        {
+          "name": "Register",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"username\": \"testuser\",\n  \"email\": \"test@example.com\",\n  \"password\": \"password123\"\n}"
+            },
+            "url": {
+              "raw": "{{base_url}}/api/auth/register",
+              "host": ["{{base_url}}"],
+              "path": ["api", "auth", "register"]
+            }
+          }
+        },
+        {
+          "name": "Login",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"username\": \"testuser\",\n  \"password\": \"password123\"\n}"
+            },
+            "url": {
+              "raw": "{{base_url}}/api/auth/login",
+              "host": ["{{base_url}}"],
+              "path": ["api", "auth", "login"]
+            }
+          }
+        },
+        {
+          "name": "Get Current User",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token}}"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/api/auth/me",
+              "host": ["{{base_url}}"],
+              "path": ["api", "auth", "me"]
+            }
+          }
+        }
+      ]
+    },
+    {
+      "name": "Strategies",
+      "item": [
+        {
+          "name": "List Strategies",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token}}"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/api/strategies",
+              "host": ["{{base_url}}"],
+              "path": ["api", "strategies"]
+            }
+          }
+        },
+        {
+          "name": "Get Strategy",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token}}"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/api/strategies/:id",
+              "host": ["{{base_url}}"],
+              "path": ["api", "strategies", ":id"],
+              "variable": [
+                {
+                  "key": "id",
+                  "value": "1"
+                }
+              ]
+            }
+          }
+        },
+        {
+          "name": "Create Strategy",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token}}"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"name\": \"My Strategy\",\n  \"description\": \"Test strategy\",\n  \"code\": \"module.exports = async function strategy(ctx) { return { signal: 'HOLD' }; };\",\n  \"params\": {}\n}"
+            },
+            "url": {
+              "raw": "{{base_url}}/api/strategies",
+              "host": ["{{base_url}}"],
+              "path": ["api", "strategies"]
+            }
+          }
+        },
+        {
+          "name": "Update Strategy",
+          "request": {
+            "method": "PUT",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token}}"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"name\": \"Updated Strategy\",\n  \"code\": \"module.exports = async function strategy(ctx) { return { signal: 'HOLD' }; };\"\n}"
+            },
+            "url": {
+              "raw": "{{base_url}}/api/strategies/:id",
+              "host": ["{{base_url}}"],
+              "path": ["api", "strategies", ":id"],
+              "variable": [
+                {
+                  "key": "id",
+                  "value": "1"
+                }
+              ]
+            }
+          }
+        },
+        {
+          "name": "Delete Strategy",
+          "request": {
+            "method": "DELETE",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token}}"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/api/strategies/:id",
+              "host": ["{{base_url}}"],
+              "path": ["api", "strategies", ":id"],
+              "variable": [
+                {
+                  "key": "id",
+                  "value": "1"
+                }
+              ]
+            }
+          }
+        }
+      ]
+    },
+    {
+      "name": "Backtests",
+      "item": [
+        {
+          "name": "List Backtests",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token}}"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/api/backtests",
+              "host": ["{{base_url}}"],
+              "path": ["api", "backtests"]
+            }
+          }
+        },
+        {
+          "name": "Get Backtest",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token}}"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/api/backtests/:id",
+              "host": ["{{base_url}}"],
+              "path": ["api", "backtests", ":id"],
+              "variable": [
+                {
+                  "key": "id",
+                  "value": "1"
+                }
+              ]
+            }
+          }
+        },
+        {
+          "name": "Run Backtest",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token}}"
+              }
+            ],
+            "body": {
+              "mode": "formdata",
+              "formdata": [
+                {
+                  "key": "strategyId",
+                  "value": "1",
+                  "type": "text"
+                },
+                {
+                  "key": "name",
+                  "value": "My Backtest",
+                  "type": "text"
+                },
+                {
+                  "key": "commission",
+                  "value": "0.001",
+                  "type": "text"
+                },
+                {
+                  "key": "slippage",
+                  "value": "0.0005",
+                  "type": "text"
+                },
+                {
+                  "key": "initialCapital",
+                  "value": "10000",
+                  "type": "text"
+                },
+                {
+                  "key": "dataFile",
+                  "type": "file",
+                  "src": []
+                }
+              ]
+            },
+            "url": {
+              "raw": "{{base_url}}/api/backtests/run",
+              "host": ["{{base_url}}"],
+              "path": ["api", "backtests", "run"]
+            }
+          }
+        },
+        {
+          "name": "Download Trades CSV",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token}}"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/api/backtests/:id/trades",
+              "host": ["{{base_url}}"],
+              "path": ["api", "backtests", ":id", "trades"],
+              "variable": [
+                {
+                  "key": "id",
+                  "value": "1"
+                }
+              ]
+            }
+          }
+        }
+      ]
+    },
+    {
+      "name": "Trading",
+      "item": [
+        {
+          "name": "Get Trading Status",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token}}"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/api/trading/status",
+              "host": ["{{base_url}}"],
+              "path": ["api", "trading", "status"]
+            }
+          }
+        },
+        {
+          "name": "Start Trading",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token}}"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"strategyId\": 1,\n  \"symbol\": \"BTC/USD\",\n  \"brokerType\": \"paper\"\n}"
+            },
+            "url": {
+              "raw": "{{base_url}}/api/trading/start",
+              "host": ["{{base_url}}"],
+              "path": ["api", "trading", "start"]
+            }
+          }
+        },
+        {
+          "name": "Get Live Trades",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token}}"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/api/trading/trades",
+              "host": ["{{base_url}}"],
+              "path": ["api", "trading", "trades"]
+            }
+          }
+        }
+      ]
+    }
+  ],
+  "variable": [
+    {
+      "key": "base_url",
+      "value": "http://localhost:5000"
+    },
+    {
+      "key": "token",
+      "value": ""
+    }
+  ]
+}
+
