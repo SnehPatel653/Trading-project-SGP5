@@ -102,92 +102,100 @@ function StrategyEditor() {
   }
 
   return (
-    <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
-      <h1 className="text-3xl font-bold text-gray-900 mb-8">
-        {id ? 'Edit Strategy' : 'New Strategy'}
-      </h1>
-
-      <form onSubmit={handleSubmit} className="space-y-6">
-        <div className="bg-white rounded-lg shadow p-6">
-          <div className="mb-4">
-            <label htmlFor="name" className="block text-sm font-medium text-gray-700 mb-2">
-              Strategy Name *
-            </label>
-            <input
-              id="name"
-              type="text"
-              required
-              value={name}
-              onChange={(e) => setName(e.target.value)}
-              className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-blue-500 focus:border-blue-500"
-              placeholder="My Trading Strategy"
-            />
-          </div>
-
-          <div className="mb-4">
-            <label htmlFor="description" className="block text-sm font-medium text-gray-700 mb-2">
-              Description
-            </label>
-            <textarea
-              id="description"
-              value={description}
-              onChange={(e) => setDescription(e.target.value)}
-              rows={3}
-              className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-blue-500 focus:border-blue-500"
-              placeholder="Describe your strategy..."
-            />
-          </div>
+    <div className="min-h-screen bg-gradient-to-br from-gray-900 via-gray-800 to-gray-900">
+      {/* Header */}
+      <div className="bg-gradient-to-r from-indigo-600 to-blue-600 text-white py-8">
+        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+          <h1 className="text-4xl font-bold">
+            {id ? '✏️ Edit Strategy' : '➕ New Strategy'}
+          </h1>
+          <p className="mt-2 text-indigo-100">Write and test your trading algorithm</p>
         </div>
+      </div>
 
-        <div className="bg-white rounded-lg shadow p-6">
-          <label htmlFor="code" className="block text-sm font-medium text-gray-700 mb-2">
-            Strategy Code *
-          </label>
-          <p className="text-sm text-gray-500 mb-4">
-            Must export an async function with signature: <code>async function strategy(ctx)</code>
-          </p>
-          <div className="border border-gray-300 rounded-md overflow-hidden">
-            <textarea
-              id="code"
-              required
-              value={code}
-              onChange={(e) => setCode(e.target.value)}
-              rows={30}
-              className="w-full px-4 py-3 font-mono text-sm focus:outline-none resize-y"
-              style={{ fontFamily: 'monospace' }}
-            />
-          </div>
-          <div className="mt-4">
-            <p className="text-sm font-medium text-gray-700 mb-2">Code Preview:</p>
-            <div className="border border-gray-300 rounded-md overflow-hidden">
-              <SyntaxHighlighter
-                language="javascript"
-                style={vscDarkPlus}
-                customStyle={{ margin: 0, borderRadius: '0.375rem' }}
-              >
-                {code}
-              </SyntaxHighlighter>
+      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
+        <form onSubmit={handleSubmit} className="space-y-6">
+          <div className="bg-gray-800 rounded-lg shadow-lg p-6 border border-gray-700">
+            <div className="mb-4">
+              <label htmlFor="name" className="block text-sm font-medium text-gray-200 mb-2">
+                Strategy Name *
+              </label>
+              <input
+                id="name"
+                type="text"
+                required
+                value={name}
+                onChange={(e) => setName(e.target.value)}
+                className="w-full px-3 py-2 bg-gray-700 border border-gray-600 rounded-md text-white focus:outline-none focus:ring-2 focus:ring-indigo-500"
+                placeholder="My Trading Strategy"
+              />
+            </div>
+
+            <div className="mb-4">
+              <label htmlFor="description" className="block text-sm font-medium text-gray-200 mb-2">
+                Description
+              </label>
+              <textarea
+                id="description"
+                value={description}
+                onChange={(e) => setDescription(e.target.value)}
+                rows={3}
+                className="w-full px-3 py-2 bg-gray-700 border border-gray-600 rounded-md text-white focus:outline-none focus:ring-2 focus:ring-indigo-500"
+                placeholder="Describe your strategy..."
+              />
             </div>
           </div>
-        </div>
 
-        <div className="flex justify-end space-x-4">
-          <button
-            type="button"
-            onClick={() => navigate('/strategies')}
-            className="px-4 py-2 border border-gray-300 rounded-md text-gray-700 hover:bg-gray-50"
-          >
-            Cancel
-          </button>
-          <button
-            type="submit"
-            disabled={loading}
-            className="px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700 disabled:opacity-50"
-          >
-            {loading ? 'Saving...' : id ? 'Update Strategy' : 'Create Strategy'}
-          </button>
-        </div>
-      </form>
+          <div className="bg-gray-800 rounded-lg shadow-lg p-6 border border-gray-700">
+            <label htmlFor="code" className="block text-sm font-medium text-gray-200 mb-2">
+              Strategy Code *
+            </label>
+            <p className="text-sm text-gray-400 mb-4">
+              Must export an async function with signature: <code className="bg-gray-900 px-2 py-1 rounded">async function strategy(ctx)</code>
+            </p>
+            <div className="border border-gray-600 rounded-md overflow-hidden mb-4">
+              <textarea
+                id="code"
+                required
+                value={code}
+                onChange={(e) => setCode(e.target.value)}
+                rows={25}
+                className="w-full px-4 py-3 font-mono text-sm bg-gray-900 text-gray-200 focus:outline-none resize-y"
+                style={{ fontFamily: 'monospace' }}
+              />
+            </div>
+            <div>
+              <p className="text-sm font-medium text-gray-200 mb-2">📝 Code Preview:</p>
+              <div className="border border-gray-600 rounded-md overflow-hidden">
+                <SyntaxHighlighter
+                  language="javascript"
+                  style={vscDarkPlus}
+                  customStyle={{ margin: 0, borderRadius: '0.375rem' }}
+                >
+                  {code}
+                </SyntaxHighlighter>
+              </div>
+            </div>
+          </div>
+
+          <div className="flex justify-end space-x-4">
+            <button
+              type="button"
+              onClick={() => navigate('/strategies')}
+              className="px-4 py-2 border border-gray-600 rounded-md text-gray-200 hover:bg-gray-700"
+            >
+              Cancel
+            </button>
+            <button
+              type="submit"
+              disabled={loading}
+              className="px-4 py-2 bg-gradient-to-r from-indigo-600 to-blue-600 text-white rounded-md hover:from-indigo-500 hover:to-blue-500 font-semibold disabled:opacity-60"
+            >
+              {loading ? '⏳ Saving...' : id ? '💾 Update Strategy' : '✅ Create Strategy'}
+            </button>
+          </div>
+        </form>
+      </div>
     </div>
   );
 }

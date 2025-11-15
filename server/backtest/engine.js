@@ -17,12 +17,66 @@ class BacktestEngine {
     this.commission = options.commission || 0.001; // 0.1% default
     this.slippage = options.slippage || 0.0005; // 0.05% default
     this.initialCapital = options.initialCapital || 10000;
-    this.timeframe = options.timeframe || '1h';
+    // Support multiple timeframes (array). Backwards compatible with single 'timeframe' option.
+    this.timeframes = options.timeframes || (options.timeframe ? [options.timeframe] : ['1h']);
+  }
+
+  // Convert timeframe string like '1m', '5m', '1h', '1d' to milliseconds
+  timeframeToMs(tf) {
+    const match = String(tf).toLowerCase().match(/^(\d+)(m|h|d)$/);
+    if (!match) throw new Error(`Invalid timeframe: ${tf}`);
+    const n = parseInt(match[1], 10);
+    const unit = match[2];
+    if (unit === 'm') return n * 60 * 1000;
+    if (unit === 'h') return n * 60 * 60 * 1000;
+    if (unit === 'd') return n * 24 * 60 * 60 * 1000;
+    throw new Error(`Unsupported timeframe unit: ${unit}`);
+  }
+
+  // Aggregate raw candles into the given timeframe
+  aggregateCandles(candles, timeframe) {
+    if (!Array.isArray(candles) || candles.length === 0) return [];
+    const interval = this.timeframeToMs(timeframe);
+    const grouped = new Map();
+
+    for (const c of candles) {
+      const ts = c.timestamp instanceof Date ? c.timestamp.getTime() : new Date(c.timestamp).getTime();
+      const bucket = Math.floor(ts / interval) * interval;
+      if (!grouped.has(bucket)) grouped.set(bucket, []);
+      grouped.get(bucket).push(c);
+    }
+
+    // Convert groups into candles
+    const result = [];
+    const sortedKeys = Array.from(grouped.keys()).sort((a, b) => a - b);
+    for (const key of sortedKeys) {
+      const group = grouped.get(key);
+      if (!group || group.length === 0) continue;
+      const open = group[0].open;
+      const close = group[group.length - 1].close;
+      const high = group.reduce((m, v) => Math.max(m, v.high), -Infinity);
+      const low = group.reduce((m, v) => Math.min(m, v.low), Infinity);
+      const volume = group.reduce((s, v) => s + (v.volume || 0), 0);
+      result.push({ timestamp: new Date(key), open, high, low, close, volume });
+    }
+
+    return result;
+  }
+
+  // Create multi-timeframe datasets from raw data
+  createMultiTimeframeData(rawCandles, timeframes) {
+    const tfs = Array.isArray(timeframes) ? timeframes : [timeframes];
+    const out = {};
+    for (const tf of tfs) {
+      out[tf] = this.aggregateCandles(rawCandles, tf);
+    }
+    return out;
   }
 
   /**
    * Load OHLCV data from CSV file
    * Expected format: timestamp,open,high,low,close,volume
+   * Supports column names: timestamp, time, date, or datetime
    */
   async loadData(filePath) {
     const candles = [];
@@ -31,8 +85,27 @@ class BacktestEngine {
       fs.createReadStream(filePath)
         .pipe(csv())
         .on('data', (row) => {
+          // Try different timestamp column names
+          const timeValue = row.timestamp || row.time || row.date || row.datetime;
+          
+          // Parse the timestamp - handle both ISO 8601 and "YYYY-MM-DD HH:MM:SS" formats
+          let timestamp;
+          if (typeof timeValue === 'string') {
+            // Replace space with T for ISO 8601 format conversion
+            const isoString = timeValue.includes(' ') ? timeValue.replace(' ', 'T') : timeValue;
+            timestamp = new Date(isoString);
+          } else {
+            timestamp = new Date(timeValue);
+          }
+          
+          // Validate the parsed date
+          if (isNaN(timestamp.getTime())) {
+            console.warn(`Skipping row with invalid timestamp: ${timeValue}`);
+            return; // Skip invalid timestamps
+          }
+          
           const candle = {
-            timestamp: new Date(row.timestamp || row.time || row.date),
+            timestamp: timestamp,
             open: parseFloat(row.open),
             high: parseFloat(row.high),
             low: parseFloat(row.low),
@@ -62,6 +135,7 @@ class BacktestEngine {
     // Create a sandboxed context
     const sandbox = {
       module: { exports: {} },
+      exports: {},
       require: (module) => {
         // Only allow safe modules
         const allowed = ['crypto'];
@@ -85,13 +159,26 @@ class BacktestEngine {
     try {
       // Execute strategy code in sandbox
       vm.createContext(sandbox);
-      vm.runInContext(code, sandbox, { timeout: 1000 });
       
-      if (typeof sandbox.module.exports !== 'function') {
+      // Wrap the code to handle module.exports properly
+      // This wrapping ensures module and exports are available in the context
+      const wrappedCode = `
+        (function(module, exports, require, console) {
+          'use strict';
+          ${code}
+        })(module, exports, require, console);
+      `;
+      
+      vm.runInContext(wrappedCode, sandbox, { timeout: 1000 });
+      
+      // Get the exported function from either module.exports or exports
+      const strategyFn = sandbox.module.exports || sandbox.exports;
+      
+      if (typeof strategyFn !== 'function') {
         throw new Error('Strategy must export a function');
       }
 
-      return sandbox.module.exports;
+      return strategyFn;
     } catch (error) {
       throw new Error(`Strategy code error: ${error.message}`);
     }
@@ -102,33 +189,82 @@ class BacktestEngine {
    */
   async run(strategyCode, data, params = {}) {
     const strategy = this.createStrategyFunction(strategyCode);
-    
+    // Determine if `data` is a mapping of timeframe -> candles (object), or a single array
+    const isMapping = data && typeof data === 'object' && !Array.isArray(data);
+
+    // Prepare candlesByTf and choose primary timeline for iteration
+    let candlesByTf = {};
+    let primarySeries = null;
+    if (isMapping) {
+      // Data provided per timeframe (already aggregated)
+      candlesByTf = data;
+      // Pick the highest-resolution timeframe (smallest ms) among provided keys
+      const keys = Object.keys(candlesByTf);
+      if (keys.length === 0) throw new Error('No timeframe data provided');
+      let primaryTf = keys[0];
+      let minMs = this.timeframeToMs(primaryTf);
+      for (const k of keys) {
+        try {
+          const ms = this.timeframeToMs(k);
+          if (ms < minMs) {
+            minMs = ms;
+            primaryTf = k;
+          }
+        } catch (e) {
+          // ignore invalid timeframe strings here
+        }
+      }
+      primarySeries = candlesByTf[primaryTf] || [];
+    } else {
+      // Single raw series provided; build aggregated timeframes from it
+      const raw = Array.isArray(data) ? data : [];
+      candlesByTf = this.createMultiTimeframeData(raw, this.timeframes);
+      // Choose primary as the raw data (highest resolution available)
+      primarySeries = raw;
+    }
+
     // Initialize state
     let capital = this.initialCapital;
     let position = null; // { side: 'LONG'|'SHORT', size, entryPrice, entryTime }
     const trades = [];
-    const equityCurve = [{ timestamp: data[0]?.timestamp, equity: capital }];
     const state = {};
 
-    // Process each candle
-    for (let i = 0; i < data.length; i++) {
-      const candle = data[i];
+    // We'll iterate over the primarySeries and provide aggregated candles up to the current timestamp for each requested timeframe.
+    const tfIndices = {};
+    for (const tf of Object.keys(candlesByTf)) tfIndices[tf] = 0;
+
+    // Process each candle (primary timeline)
+    for (let i = 0; i < primarySeries.length; i++) {
+      const candle = primarySeries[i];
+      const currentTs = candle.timestamp instanceof Date ? candle.timestamp.getTime() : new Date(candle.timestamp).getTime();
+
+      // For each timeframe, advance index while its candles are <= currentTs
+      const ctxCandlesByTf = {};
+      for (const tf of Object.keys(candlesByTf)) {
+        const arr = candlesByTf[tf] || [];
+        let idx = tfIndices[tf] || 0;
+        while (idx < arr.length && (arr[idx].timestamp instanceof Date ? arr[idx].timestamp.getTime() : new Date(arr[idx].timestamp).getTime()) <= currentTs) {
+          idx++;
+        }
+        tfIndices[tf] = idx;
+        // Provide a shallow copy slice up to idx
+        ctxCandlesByTf[tf] = arr.slice(0, idx);
+      }
+
       const ctx = {
-        candles: data.slice(0, i + 1), // All candles up to current
+        candles: primarySeries.slice(0, i + 1), // Backwards compatibility: primary timeline candles up to now
         index: i,
         params: params,
         state: state,
+        candlesByTf: ctxCandlesByTf,
+        currentCandle: candle,
       };
 
       try {
         // Get strategy signal
         const signal = await strategy(ctx);
         
-        if (!signal || !signal.signal) {
-          continue;
-        }
-
-        const { signal: action, size, meta } = signal;
+        const { signal: action, size, meta } = signal || { signal: 'HOLD' };
 
         // Handle position management
         if (action === 'BUY' && !position) {
@@ -137,8 +273,9 @@ class BacktestEngine {
           const entryPrice = candle.close * (1 + this.slippage);
           const cost = entryPrice * tradeSize;
           const commissionCost = cost * this.commission;
+          const totalCost = cost + commissionCost;
           
-          if (capital >= cost + commissionCost) {
+          if (capital >= totalCost) {
             position = {
               side: 'LONG',
               size: tradeSize,
@@ -146,8 +283,9 @@ class BacktestEngine {
               entryTime: candle.timestamp,
               entryIndex: i,
               meta: meta || {},
+              totalCost: totalCost,
             };
-            capital -= (cost + commissionCost);
+            capital -= totalCost;
           }
         } else if (action === 'SELL' && position) {
           // Close position
@@ -156,10 +294,17 @@ class BacktestEngine {
           const commissionCost = revenue * this.commission;
           const netRevenue = revenue - commissionCost;
           
-          capital += netRevenue;
+          let pnl;
+          if (position.side === 'LONG') {
+            // For long positions: profit if exit > entry
+            pnl = netRevenue - position.totalCost;
+          } else {
+            // For short positions: profit if entry > exit (inverted logic)
+            pnl = position.totalCost - netRevenue;
+          }
+          const pnlPercent = (pnl / position.totalCost) * 100;
           
-          const pnl = netRevenue - (position.entryPrice * position.size * (1 + this.commission));
-          const pnlPercent = (pnl / (position.entryPrice * position.size)) * 100;
+          capital += netRevenue;
           
           trades.push({
             entryTime: position.entryTime,
@@ -174,24 +319,47 @@ class BacktestEngine {
             exitIndex: i,
             meta: position.meta,
           });
-
           position = null;
         } else if (action === 'SELL' && !position) {
-          // Open short position (if supported)
-          // For simplicity, we'll skip short positions in this implementation
+          // Open short position
+          const tradeSize = size || 1.0;
+          const entryPrice = candle.close * (1 - this.slippage);
+          const cost = entryPrice * tradeSize;
+          const commissionCost = cost * this.commission;
+          const totalCost = cost + commissionCost;
+          
+          if (capital >= totalCost) {
+            position = {
+              side: 'SHORT',
+              size: tradeSize,
+              entryPrice: entryPrice,
+              entryTime: candle.timestamp,
+              entryIndex: i,
+              meta: meta || {},
+              totalCost: totalCost,
+            };
+            capital -= totalCost;
+          }
         }
 
-        // Update equity curve
-        let currentEquity = capital;
+        // Calculate total equity including unrealized P&L
+        let totalEquity = capital;
         if (position) {
-          const currentValue = candle.close * position.size;
-          const unrealizedPnL = currentValue - (position.entryPrice * position.size);
-          currentEquity = capital + unrealizedPnL;
+          const currentPrice = candle.close;
+          let unrealizedPnL;
+          if (position.side === 'LONG') {
+            unrealizedPnL = (currentPrice - position.entryPrice) * position.size;
+          } else {
+            // Short position: profit when price goes down
+            unrealizedPnL = (position.entryPrice - currentPrice) * position.size;
+          }
+          totalEquity = capital + unrealizedPnL;
         }
-        
+
+        // Record equity curve at each candle (includes unrealized P&L)
         equityCurve.push({
           timestamp: candle.timestamp,
-          equity: currentEquity,
+          equity: totalEquity,
         });
       } catch (error) {
         console.error(`Strategy error at candle ${i}:`, error.message);
@@ -200,8 +368,8 @@ class BacktestEngine {
     }
 
     // Close any open position at the end
-    if (position && data.length > 0) {
-      const lastCandle = data[data.length - 1];
+    if (position && primarySeries.length > 0) {
+      const lastCandle = primarySeries[primarySeries.length - 1];
       const exitPrice = lastCandle.close * (1 - this.slippage);
       const revenue = exitPrice * position.size;
       const commissionCost = revenue * this.commission;
@@ -209,8 +377,15 @@ class BacktestEngine {
       
       capital += netRevenue;
       
-      const pnl = netRevenue - (position.entryPrice * position.size * (1 + this.commission));
-      const pnlPercent = (pnl / (position.entryPrice * position.size)) * 100;
+      let pnl;
+      if (position.side === 'LONG') {
+        // For long positions: profit if exit > entry
+        pnl = netRevenue - position.totalCost;
+      } else {
+        // For short positions: profit if entry > exit (inverted logic)
+        pnl = position.totalCost - netRevenue;
+      }
+      const pnlPercent = (pnl / position.totalCost) * 100;
       
       trades.push({
         entryTime: position.entryTime,
@@ -222,17 +397,16 @@ class BacktestEngine {
         pnl: pnl,
         pnlPercent: pnlPercent,
         entryIndex: position.entryIndex,
-        exitIndex: data.length - 1,
+        exitIndex: primarySeries.length - 1,
         meta: position.meta,
       });
     }
 
     // Calculate metrics
-    const metrics = this.calculateMetrics(trades, equityCurve, this.initialCapital);
+    const metrics = this.calculateMetrics(trades, [], this.initialCapital);
 
     return {
       trades,
-      equityCurve,
       metrics,
       finalCapital: capital,
     };
@@ -338,6 +512,13 @@ class BacktestEngine {
       fs.mkdirSync(dir, { recursive: true });
     }
 
+    // Convert Date objects to ISO strings for CSV export
+    const tradesForCsv = trades.map(trade => ({
+      ...trade,
+      entryTime: trade.entryTime instanceof Date ? trade.entryTime.toISOString() : trade.entryTime,
+      exitTime: trade.exitTime instanceof Date ? trade.exitTime.toISOString() : trade.exitTime,
+    }));
+
     const csvWriter = createObjectCsvWriter({
       path: filePath,
       header: [
@@ -352,7 +533,7 @@ class BacktestEngine {
       ],
     });
 
-    await csvWriter.writeRecords(trades);
+    await csvWriter.writeRecords(tradesForCsv);
     return filePath;
   }
 }

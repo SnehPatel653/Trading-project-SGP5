@@ -14,9 +14,11 @@ function Backtests() {
     commission: '0.001',
     slippage: '0.0005',
     initialCapital: '10000',
+    timeframes: ['1m','15m','1h'],
   });
-  const [file, setFile] = useState(null);
+  const [files, setFiles] = useState([]);
   const [running, setRunning] = useState(false);
+  const availableTimeframes = ['1m', '5m', '15m', '30m', '1h', '4h', '1d'];
 
   useEffect(() => {
     fetchData();
@@ -39,8 +41,24 @@ function Backtests() {
 
   const handleRunBacktest = async (e) => {
     e.preventDefault();
-    if (!formData.strategyId || !formData.name || !file) {
-      toast.error('Please fill all fields and select a CSV file');
+    if (!formData.strategyId || !formData.name) {
+      toast.error('Please fill all required fields');
+      return;
+    }
+
+    const selectedTfs = formData.timeframes || [];
+    if (selectedTfs.length === 0) {
+      toast.error('Please select at least one timeframe');
+      return;
+    }
+
+    if (!files || files.length === 0) {
+      toast.error('Please select CSV files for the selected timeframes');
+      return;
+    }
+
+    if (files.length !== selectedTfs.length) {
+      toast.error(`Selected ${selectedTfs.length} timeframe(s) but uploaded ${files.length} file(s). Please upload one CSV per timeframe.`);
       return;
     }
 
@@ -51,7 +69,13 @@ function Backtests() {
     formDataToSend.append('commission', formData.commission);
     formDataToSend.append('slippage', formData.slippage);
     formDataToSend.append('initialCapital', formData.initialCapital);
-    formDataToSend.append('dataFile', file);
+    // Send timeframes as JSON string (ordered)
+    formDataToSend.append('timeframes', JSON.stringify(formData.timeframes || []));
+
+    // Append files in the same order as timeframes
+    for (let i = 0; i < files.length; i++) {
+      formDataToSend.append('dataFiles', files[i]);
+    }
 
     try {
       const response = await axios.post('/api/backtests/run', formDataToSend, {
@@ -88,193 +112,208 @@ function Backtests() {
   }
 
   return (
-    <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
-      <div className="flex justify-between items-center mb-8">
-        <h1 className="text-3xl font-bold text-gray-900">Backtests</h1>
-        <button
-          onClick={() => setShowRunForm(!showRunForm)}
-          className="px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700"
-        >
-          {showRunForm ? 'Cancel' : 'Run New Backtest'}
-        </button>
-      </div>
-
-      {showRunForm && (
-        <div className="bg-white rounded-lg shadow p-6 mb-8">
-          <h2 className="text-xl font-bold text-gray-900 mb-4">Run Backtest</h2>
-          <form onSubmit={handleRunBacktest} className="space-y-4">
-            <div>
-              <label className="block text-sm font-medium text-gray-700 mb-2">
-                Strategy *
-              </label>
-              <select
-                required
-                value={formData.strategyId}
-                onChange={(e) => setFormData({ ...formData, strategyId: e.target.value })}
-                className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-blue-500 focus:border-blue-500"
-              >
-                <option value="">Select a strategy</option>
-                {strategies.map((s) => (
-                  <option key={s.id} value={s.id}>
-                    {s.name}
-                  </option>
-                ))}
-              </select>
-            </div>
-
-            <div>
-              <label className="block text-sm font-medium text-gray-700 mb-2">
-                Backtest Name *
-              </label>
-              <input
-                type="text"
-                required
-                value={formData.name}
-                onChange={(e) => setFormData({ ...formData, name: e.target.value })}
-                className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-blue-500 focus:border-blue-500"
-                placeholder="My Backtest"
-              />
-            </div>
-
-            <div className="grid grid-cols-3 gap-4">
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-2">
-                  Commission (0.001 = 0.1%)
-                </label>
-                <input
-                  type="number"
-                  step="0.0001"
-                  value={formData.commission}
-                  onChange={(e) => setFormData({ ...formData, commission: e.target.value })}
-                  className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-blue-500 focus:border-blue-500"
-                />
-              </div>
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-2">
-                  Slippage (0.0005 = 0.05%)
-                </label>
-                <input
-                  type="number"
-                  step="0.0001"
-                  value={formData.slippage}
-                  onChange={(e) => setFormData({ ...formData, slippage: e.target.value })}
-                  className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-blue-500 focus:border-blue-500"
-                />
-              </div>
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-2">
-                  Initial Capital
-                </label>
-                <input
-                  type="number"
-                  value={formData.initialCapital}
-                  onChange={(e) => setFormData({ ...formData, initialCapital: e.target.value })}
-                  className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-blue-500 focus:border-blue-500"
-                />
-              </div>
-            </div>
-
-            <div>
-              <label className="block text-sm font-medium text-gray-700 mb-2">
-                OHLCV CSV File *
-              </label>
-              <input
-                type="file"
-                accept=".csv"
-                required
-                onChange={(e) => setFile(e.target.files[0])}
-                className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-blue-500 focus:border-blue-500"
-              />
-              <p className="text-sm text-gray-500 mt-1">
-                CSV format: timestamp,open,high,low,close,volume
-              </p>
-            </div>
-
-            <button
-              type="submit"
-              disabled={running}
-              className="px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700 disabled:opacity-50"
-            >
-              {running ? 'Running...' : 'Run Backtest'}
-            </button>
-          </form>
-        </div>
-      )}
-
-      {backtests.length === 0 ? (
-        <div className="bg-white rounded-lg shadow p-8 text-center">
-          <p className="text-gray-500 mb-4">No backtests yet</p>
+    <div className="min-h-screen bg-gradient-to-br from-gray-900 via-gray-800 to-gray-900">
+      {/* Header */}
+      <div className="bg-gradient-to-r from-purple-600 to-pink-600 text-white py-8">
+        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 flex justify-between items-center">
+          <div>
+            <h1 className="text-4xl font-bold">Backtests</h1>
+            <p className="mt-2 text-purple-100">Test your strategies with historical data</p>
+          </div>
           <button
-            onClick={() => setShowRunForm(true)}
-            className="text-blue-600 hover:text-blue-800"
+            onClick={() => setShowRunForm(!showRunForm)}
+            className="px-6 py-3 bg-white text-purple-600 rounded-lg font-semibold hover:bg-purple-50 shadow-lg"
           >
-            Run your first backtest
+            {showRunForm ? '✕ Cancel' : '+ Run Backtest'}
           </button>
         </div>
-      ) : (
-        <div className="grid grid-cols-1 gap-4">
-          {backtests.map((backtest) => {
-            const rawResults = backtest.results;
-            const results = rawResults
-              ? typeof rawResults === 'string'
-                ? JSON.parse(rawResults)
-                : rawResults
-              : null;
-            const metrics = results?.metrics || {};
+      </div>
 
-            return (
-              <div key={backtest.id} className="bg-white rounded-lg shadow p-6">
-                <div className="flex justify-between items-start">
-                  <div className="flex-1">
-                    <h3 className="text-xl font-semibold text-gray-900">{backtest.name}</h3>
-                    <p className="text-sm text-gray-500 mt-2">
-                      Created: {new Date(backtest.createdAt || backtest.created_at).toLocaleDateString()}
-                    </p>
-                    {metrics.totalTrades !== undefined && (
-                      <div className="mt-4 grid grid-cols-4 gap-4">
-                        <div>
-                          <p className="text-sm text-gray-500">Total Trades</p>
-                          <p className="text-lg font-semibold">{metrics.totalTrades}</p>
-                        </div>
-                        <div>
-                          <p className="text-sm text-gray-500">Win Rate</p>
-                          <p className="text-lg font-semibold">{metrics.winRate}%</p>
-                        </div>
-                        <div>
-                          <p className="text-sm text-gray-500">Net P&L</p>
-                          <p className={`text-lg font-semibold ${metrics.netPnL >= 0 ? 'text-green-600' : 'text-red-600'}`}>
-                            ${metrics.netPnL?.toFixed(2)}
-                          </p>
-                        </div>
-                        <div>
-                          <p className="text-sm text-gray-500">ROI</p>
-                          <p className={`text-lg font-semibold ${metrics.roi >= 0 ? 'text-green-600' : 'text-red-600'}`}>
-                            {metrics.roi?.toFixed(2)}%
-                          </p>
-                        </div>
-                      </div>
-                    )}
-                  </div>
-                  <div className="flex space-x-2">
-                    <Link
-                      to={`/backtests/${backtest.id}`}
-                      className="px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700 text-sm"
-                    >
-                      View Details
-                    </Link>
-                    <button
-                      onClick={() => handleDelete(backtest.id)}
-                      className="px-4 py-2 bg-red-600 text-white rounded-md hover:bg-red-700 text-sm"
-                    >
-                      Delete
-                    </button>
+      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
+        {showRunForm && (
+          <div className="bg-gray-800 rounded-lg shadow-lg p-6 mb-8 border border-gray-700">
+            <h2 className="text-2xl font-bold text-white mb-4">Run New Backtest</h2>
+            <form onSubmit={handleRunBacktest} className="space-y-4">
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <div>
+                  <label className="block text-sm font-medium text-gray-300 mb-2">Strategy *</label>
+                  <select
+                    required
+                    value={formData.strategyId}
+                    onChange={(e) => setFormData({ ...formData, strategyId: e.target.value })}
+                    className="w-full px-3 py-2 bg-gray-700 border border-gray-600 rounded-md text-white focus:outline-none focus:ring-2 focus:ring-purple-500"
+                  >
+                    <option value="">Select a strategy</option>
+                    {strategies.map((s) => (
+                      <option key={s.id} value={s.id}>{s.name}</option>
+                    ))}
+                  </select>
+                </div>
+
+                <div>
+                  <label className="block text-sm font-medium text-gray-300 mb-2">Backtest Name *</label>
+                  <input
+                    type="text"
+                    required
+                    value={formData.name}
+                    onChange={(e) => setFormData({ ...formData, name: e.target.value })}
+                    className="w-full px-3 py-2 bg-gray-700 border border-gray-600 rounded-md text-white focus:outline-none focus:ring-2 focus:ring-purple-500"
+                    placeholder="My Backtest"
+                  />
+                </div>
+
+                <div>
+                  <label className="block text-sm font-medium text-gray-300 mb-2">Commission</label>
+                  <input
+                    type="number"
+                    step="0.0001"
+                    value={formData.commission}
+                    onChange={(e) => setFormData({ ...formData, commission: e.target.value })}
+                    className="w-full px-3 py-2 bg-gray-700 border border-gray-600 rounded-md text-white focus:outline-none focus:ring-2 focus:ring-purple-500"
+                  />
+                </div>
+
+                <div>
+                  <label className="block text-sm font-medium text-gray-300 mb-2">Slippage</label>
+                  <input
+                    type="number"
+                    step="0.0001"
+                    value={formData.slippage}
+                    onChange={(e) => setFormData({ ...formData, slippage: e.target.value })}
+                    className="w-full px-3 py-2 bg-gray-700 border border-gray-600 rounded-md text-white focus:outline-none focus:ring-2 focus:ring-purple-500"
+                  />
+                </div>
+
+                <div>
+                  <label className="block text-sm font-medium text-gray-300 mb-2">Initial Capital</label>
+                  <input
+                    type="number"
+                    value={formData.initialCapital}
+                    onChange={(e) => setFormData({ ...formData, initialCapital: e.target.value })}
+                    className="w-full px-3 py-2 bg-gray-700 border border-gray-600 rounded-md text-white focus:outline-none focus:ring-2 focus:ring-purple-500"
+                  />
+                </div>
+
+                <div>
+                  <label className="block text-sm font-medium text-gray-300 mb-2">OHLCV CSV File(s) *</label>
+                  <input
+                    type="file"
+                    accept=".csv"
+                    required
+                    multiple
+                    onChange={(e) => setFiles(Array.from(e.target.files))}
+                    className="w-full px-3 py-2 bg-gray-700 border border-gray-600 rounded-md text-gray-300 focus:outline-none focus:ring-2 focus:ring-purple-500"
+                  />
+                  <p className="text-xs text-gray-400 mt-1">Upload one CSV per selected timeframe. Files will be mapped in the order you uploaded them.</p>
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-gray-300 mb-2">Timeframes</label>
+                  <div className="grid grid-cols-3 gap-2">
+                    {availableTimeframes.map((tf) => (
+                      <label key={tf} className="inline-flex items-center">
+                        <input
+                          type="checkbox"
+                          checked={(formData.timeframes || []).includes(tf)}
+                          onChange={(e) => {
+                            const next = new Set(formData.timeframes || []);
+                            if (e.target.checked) next.add(tf); else next.delete(tf);
+                            setFormData({ ...formData, timeframes: Array.from(next) });
+                          }}
+                          className="mr-2"
+                        />
+                        <span className="text-gray-300 text-sm">{tf}</span>
+                      </label>
+                    ))}
                   </div>
                 </div>
               </div>
-            );
-          })}
-        </div>
-      )}
+
+              <button
+                type="submit"
+                disabled={running}
+                className="w-full py-3 bg-gradient-to-r from-purple-600 to-pink-600 text-white rounded-md hover:from-purple-500 hover:to-pink-500 font-semibold disabled:opacity-60"
+              >
+                {running ? '⏳ Running...' : '▶ Run Backtest'}
+              </button>
+            </form>
+          </div>
+        )}
+
+        {backtests.length === 0 ? (
+          <div className="bg-gray-800 rounded-lg shadow-lg p-12 text-center border border-gray-700">
+            <p className="text-gray-300 mb-4 text-lg">No backtests yet</p>
+            <button
+              onClick={() => setShowRunForm(true)}
+              className="text-purple-400 hover:text-purple-300 font-semibold"
+            >
+              Run your first backtest
+            </button>
+          </div>
+        ) : (
+          <div className="grid grid-cols-1 gap-4">
+            {backtests.map((backtest) => {
+              const rawResults = backtest.results;
+              const results = rawResults
+                ? typeof rawResults === 'string'
+                  ? JSON.parse(rawResults)
+                  : rawResults
+                : null;
+              const metrics = results?.metrics || {};
+
+              return (
+                <div key={backtest.id} className="bg-gray-800 rounded-lg shadow-lg p-6 border border-gray-700 hover:border-purple-500 transition">
+                  <div className="flex justify-between items-start">
+                    <div className="flex-1">
+                      <h3 className="text-xl font-semibold text-white">{backtest.name}</h3>
+                      <p className="text-sm text-gray-400 mt-2">
+                        Created: {new Date(backtest.createdAt || backtest.created_at).toLocaleDateString()}
+                      </p>
+                      {metrics.totalTrades !== undefined && (
+                        <div className="mt-4 grid grid-cols-2 md:grid-cols-4 gap-4">
+                          <div className="bg-gray-700 rounded p-3">
+                            <p className="text-xs text-gray-400">Total Trades</p>
+                            <p className="text-lg font-bold text-white">{metrics.totalTrades}</p>
+                          </div>
+                          <div className="bg-gray-700 rounded p-3">
+                            <p className="text-xs text-gray-400">Win Rate</p>
+                            <p className="text-lg font-bold text-white">{metrics.winRate}%</p>
+                          </div>
+                          <div className="bg-gray-700 rounded p-3">
+                            <p className="text-xs text-gray-400">Net P&L</p>
+                            <p className={`text-lg font-bold ${metrics.netPnL >= 0 ? 'text-green-400' : 'text-red-400'}`}>
+                              ${metrics.netPnL?.toFixed(2)}
+                            </p>
+                          </div>
+                          <div className="bg-gray-700 rounded p-3">
+                            <p className="text-xs text-gray-400">ROI</p>
+                            <p className={`text-lg font-bold ${metrics.roi >= 0 ? 'text-green-400' : 'text-red-400'}`}>
+                              {metrics.roi?.toFixed(2)}%
+                            </p>
+                          </div>
+                        </div>
+                      )}
+                    </div>
+                    <div className="flex space-x-2 ml-4">
+                      <Link
+                        to={`/backtests/${backtest.id}`}
+                        className="px-4 py-2 bg-purple-600 hover:bg-purple-700 text-white rounded-md text-sm font-medium"
+                      >
+                        View Details
+                      </Link>
+                      <button
+                        onClick={() => handleDelete(backtest.id)}
+                        className="px-4 py-2 bg-red-600 hover:bg-red-700 text-white rounded-md text-sm font-medium"
+                      >
+                        Delete
+                      </button>
+                    </div>
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+        )}
+      </div>
     </div>
   );
 }

@@ -48,6 +48,12 @@ function Navbar() {
               >
                 Live Trading
               </Link>
+              <Link
+                to="/tradingview"
+                className="inline-flex items-center px-1 pt-1 text-sm font-medium text-gray-900 hover:text-blue-600"
+              >
+                Trading View Chart
+              </Link>
             </div>
           </div>
           <div className="flex items-center">

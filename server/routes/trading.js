@@ -4,7 +4,7 @@ const { prisma } = require('../config/database');
 const { authenticate } = require('../middleware/auth');
 const { encrypt, decrypt } = require('../utils/encryption');
 const { PaperBroker } = require('../brokers/paper');
-const { setupLiveTrading } = require('../trading/liveTrading');
+const { setupLiveTrading, getSession, stopTradingSession, getActiveSessions } = require('../trading/liveTrading');
 
 const router = express.Router();
 
@@ -150,9 +150,23 @@ router.post(
 // Stop live trading
 router.post('/stop', authenticate, async (req, res) => {
   try {
-    // Implementation would stop the trading session
-    // For now, just return success
-    res.json({ message: 'Live trading stopped' });
+    const { sessionId } = req.body;
+    
+    if (!sessionId) {
+      return res.status(400).json({ error: 'Session ID is required' });
+    }
+
+    const session = getSession(sessionId);
+    if (!session || session.userId !== req.userId) {
+      return res.status(404).json({ error: 'Trading session not found' });
+    }
+
+    stopTradingSession(sessionId);
+
+    res.json({
+      message: 'Live trading stopped',
+      sessionId,
+    });
   } catch (error) {
     console.error('Stop trading error:', error);
     res.status(500).json({ error: 'Server error' });
@@ -183,6 +197,44 @@ router.get('/trades', authenticate, async (req, res) => {
     res.json({ trades });
   } catch (error) {
     console.error('Get live trades error:', error);
+    res.status(500).json({ error: 'Server error' });
+  }
+});
+
+// Get active trading sessions
+router.get('/sessions', authenticate, async (req, res) => {
+  try {
+    const sessions = getActiveSessions(req.userId);
+    res.json({ sessions });
+  } catch (error) {
+    console.error('Get sessions error:', error);
+    res.status(500).json({ error: 'Server error' });
+  }
+});
+
+// Get session details and account summary
+router.get('/sessions/:sessionId', authenticate, async (req, res) => {
+  try {
+    const { sessionId } = req.params;
+    const session = getSession(sessionId);
+
+    if (!session || session.userId !== req.userId) {
+      return res.status(404).json({ error: 'Session not found' });
+    }
+
+    const accountSummary = await session.broker.getAccountSummary();
+
+    res.json({
+      sessionId,
+      symbol: session.symbol,
+      brokerType: session.brokerType,
+      isRunning: session.isRunning,
+      tradesCount: session.trades.length,
+      createdAt: session.createdAt,
+      accountSummary,
+    });
+  } catch (error) {
+    console.error('Get session details error:', error);
     res.status(500).json({ error: 'Server error' });
   }
 });

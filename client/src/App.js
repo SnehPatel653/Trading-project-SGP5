@@ -10,6 +10,7 @@ import StrategyEditor from './pages/StrategyEditor';
 import Backtests from './pages/Backtests';
 import BacktestDetail from './pages/BacktestDetail';
 import LiveTrading from './pages/LiveTrading';
+import TradingViewChart from './pages/TradingViewChart';
 import Navbar from './components/Navbar';
 
 function PrivateRoute({ children }) {
@@ -80,6 +81,14 @@ function AppRoutes() {
         element={
           <PrivateRoute>
             <LiveTrading />
+          </PrivateRoute>
+        }
+      />
+      <Route
+        path="/tradingview"
+        element={
+          <PrivateRoute>
+            <TradingViewChart />
           </PrivateRoute>
         }
       />
